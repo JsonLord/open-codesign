@@ -1,0 +1,10 @@
+# Open CoDesign Web
+
+Open CoDesign Web is the local-first browser sibling of the Open CoDesign desktop design agent.
+It runs a TypeScript/Node server and React interface, stores workspaces on a user-controlled Docker
+volume, and previews `App.jsx` designs in a sandboxed browser frame.
+
+- Project: https://github.com/OpenCoworkAI/open-codesign
+- Documentation: https://github.com/OpenCoworkAI/open-codesign#web-app-docker
+- License: MIT
+- Health endpoint: /api/health

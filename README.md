@@ -160,6 +160,22 @@ scoop install opencoworkai/open-codesign
 
 Each release ships with `SHA256SUMS.txt` and a CycloneDX SBOM (`*-sbom.cdx.json`) so you can verify what you downloaded.
 
+### Web app (Docker)
+
+The repository also includes an early local-first browser sibling. It provides Docker-backed design
+workspaces, an `App.jsx` source editor, and the shared sandbox preview runtime; the complete desktop
+agent and provider workflow is not available in the web sibling yet.
+
+```bash
+git clone https://github.com/OpenCoworkAI/open-codesign.git
+cd open-codesign
+docker compose -f apps/web/compose.yaml up --build
+```
+
+Open [http://localhost:7860](http://localhost:7860). Workspace data persists in a named Docker
+volume. See the [web app installation and operations guide](./apps/web/README.md) for stopping the
+service, removing its data, local development, configuration, and current deployment limitations.
+
 <details>
 <summary><b>More package managers</b></summary>
 
