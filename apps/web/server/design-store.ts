@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { type SessionInfo, SessionManager } from '@mariozechner/pi-coding-agent';
 
 export interface DesignSummary {
   id: string;
@@ -10,10 +11,10 @@ export interface DesignSummary {
 
 interface RegisteredDesign {
   directory: string;
+  sessionFile: string;
   summary: DesignSummary;
 }
 
-const METADATA_PATH = path.join('.codesign', 'web.json');
 const DEFAULT_SOURCE = `export default function App() {
   return (
     <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', background: '#f5f3ff' }}>
@@ -27,11 +28,10 @@ const DEFAULT_SOURCE = `export default function App() {
 }
 `;
 
-async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  await rename(temporaryPath, filePath);
+let registrationQueue: Promise<void> = Promise.resolve();
+
+function sessionDirectory(root: string): string {
+  return path.join(root, '.codesign', 'sessions');
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -43,50 +43,95 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-function isDesignSummary(value: unknown): value is DesignSummary {
-  if (typeof value !== 'object' || value === null) return false;
-  const row = value as Record<string, unknown>;
-  return (
-    typeof row['id'] === 'string' &&
-    /^[0-9a-f-]{36}$/i.test(row['id']) &&
-    typeof row['name'] === 'string' &&
-    typeof row['createdAt'] === 'string' &&
-    typeof row['updatedAt'] === 'string'
+async function projectDirectories(root: string): Promise<string[]> {
+  await mkdir(root, { recursive: true });
+  const entries = await readdir(root, { withFileTypes: true });
+  const candidates = entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => path.join(root, entry.name));
+  const renderable = await Promise.all(
+    candidates.map(async (directory) =>
+      (await pathExists(path.join(directory, 'App.jsx'))) ? directory : null,
+    ),
   );
+  return renderable.filter((directory): directory is string => directory !== null);
 }
 
-async function registerDirectory(directory: string): Promise<RegisteredDesign | null> {
-  const entryPath = path.join(directory, 'App.jsx');
-  if (!(await pathExists(entryPath))) return null;
+function flushSession(manager: SessionManager): Promise<void> {
+  const file = manager.getSessionFile();
+  const header = manager.getHeader();
+  if (!file || !header) throw new Error('Pi session file unavailable');
+  const content = [header, ...manager.getEntries()]
+    .map((entry) => JSON.stringify(entry))
+    .join('\n');
+  return writeFile(file, `${content}\n`, { encoding: 'utf8', flag: 'wx' });
+}
 
-  const metadataPath = path.join(directory, METADATA_PATH);
-  try {
-    const parsed = JSON.parse(await readFile(metadataPath, 'utf8')) as unknown;
-    if (isDesignSummary(parsed)) return { directory, summary: parsed };
-  } catch {
-    // A missing or invalid local registration is repaired from the workspace itself below.
-  }
+async function createProjectSession(
+  root: string,
+  directory: string,
+  name: string,
+): Promise<SessionInfo> {
+  const sessions = sessionDirectory(root);
+  await mkdir(sessions, { recursive: true });
+  const manager = SessionManager.create(directory, sessions);
+  manager.appendSessionInfo(name);
+  await flushSession(manager);
+  const file = manager.getSessionFile();
+  if (!file) throw new Error('Pi session file unavailable');
+  const created = (await SessionManager.list(root, sessions)).find(
+    (session) => session.path === file,
+  );
+  if (!created) throw new Error('Created pi session could not be loaded');
+  return created;
+}
 
-  const entryStat = await stat(entryPath);
-  const summary: DesignSummary = {
-    id: crypto.randomUUID(),
-    name: path.basename(directory),
-    createdAt: entryStat.birthtime.toISOString(),
-    updatedAt: entryStat.mtime.toISOString(),
+async function synchronizeSessions(root: string): Promise<SessionInfo[]> {
+  const operation = registrationQueue.then(async () => {
+    const sessions = sessionDirectory(root);
+    await mkdir(sessions, { recursive: true });
+    const [directories, existing] = await Promise.all([
+      projectDirectories(root),
+      SessionManager.list(root, sessions),
+    ]);
+    const registeredCwds = new Set(existing.map((session) => path.resolve(session.cwd)));
+    for (const directory of directories) {
+      if (!registeredCwds.has(path.resolve(directory))) {
+        await createProjectSession(root, directory, path.basename(directory));
+        registeredCwds.add(path.resolve(directory));
+      }
+    }
+  });
+  registrationQueue = operation.catch(() => undefined);
+  await operation;
+  return SessionManager.list(root, sessionDirectory(root));
+}
+
+function registeredDesign(session: SessionInfo): RegisteredDesign {
+  return {
+    directory: path.resolve(session.cwd),
+    sessionFile: session.path,
+    summary: {
+      id: session.id,
+      name: session.name?.trim() || path.basename(session.cwd),
+      createdAt: session.created.toISOString(),
+      updatedAt: session.modified.toISOString(),
+    },
   };
-  await writeJsonAtomic(metadataPath, summary);
-  return { directory, summary };
 }
 
 async function registeredDesigns(root: string): Promise<RegisteredDesign[]> {
-  await mkdir(root, { recursive: true });
-  const entries = await readdir(root, { withFileTypes: true });
-  const registered = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
-      .map((entry) => registerDirectory(path.join(root, entry.name))),
+  const rootPrefix = `${path.resolve(root)}${path.sep}`;
+  const sessions = await synchronizeSessions(root);
+  const candidates = sessions
+    .filter((session) => path.resolve(session.cwd).startsWith(rootPrefix))
+    .map(registeredDesign);
+  const valid = await Promise.all(
+    candidates.map(async (design) =>
+      (await pathExists(path.join(design.directory, 'App.jsx'))) ? design : null,
+    ),
   );
-  return registered.filter((design): design is RegisteredDesign => design !== null);
+  return valid.filter((design): design is RegisteredDesign => design !== null);
 }
 
 async function requireDesign(root: string, id: string): Promise<RegisteredDesign> {
@@ -105,6 +150,12 @@ function projectSlug(name: string): string {
   return slug.slice(0, 48) || 'untitled-design';
 }
 
+async function writeAtomic(filePath: string, content: string): Promise<void> {
+  const temporaryPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  await writeFile(temporaryPath, content, 'utf8');
+  await rename(temporaryPath, filePath);
+}
+
 export async function listDesigns(root: string): Promise<DesignSummary[]> {
   const designs = await registeredDesigns(root);
   return designs
@@ -117,16 +168,17 @@ export async function createDesign(root: string, name: string): Promise<DesignSu
   if (normalizedName.length === 0 || normalizedName.length > 120) {
     throw new Error('Design name must contain between 1 and 120 characters');
   }
-  const id = crypto.randomUUID();
-  const directory = path.join(root, `${projectSlug(normalizedName)}-${id.slice(0, 8)}`);
-  const now = new Date().toISOString();
-  const design = { id, name: normalizedName, createdAt: now, updatedAt: now };
+  const directory = path.join(
+    root,
+    `${projectSlug(normalizedName)}-${crypto.randomUUID().slice(0, 8)}`,
+  );
   await mkdir(directory, { recursive: true });
-  await Promise.all([
-    writeJsonAtomic(path.join(directory, METADATA_PATH), design),
-    writeFile(path.join(directory, 'App.jsx'), DEFAULT_SOURCE, 'utf8'),
-  ]);
-  return design;
+  await writeFile(path.join(directory, 'App.jsx'), DEFAULT_SOURCE, {
+    encoding: 'utf8',
+    flag: 'wx',
+  });
+  const session = await createProjectSession(root, directory, normalizedName);
+  return registeredDesign(session).summary;
 }
 
 export async function readEntry(
@@ -145,10 +197,6 @@ export async function writeEntry(
 ): Promise<{ path: string; content: string }> {
   if (Buffer.byteLength(content, 'utf8') > 2_000_000) throw new Error('Source is too large');
   const design = await requireDesign(root, id);
-  design.summary.updatedAt = new Date().toISOString();
-  await Promise.all([
-    writeFile(path.join(design.directory, 'App.jsx'), content, 'utf8'),
-    writeJsonAtomic(path.join(design.directory, METADATA_PATH), design.summary),
-  ]);
+  await writeAtomic(path.join(design.directory, 'App.jsx'), content);
   return { path: 'App.jsx', content };
 }

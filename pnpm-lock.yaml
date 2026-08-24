@@ -177,6 +177,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@mariozechner/pi-coding-agent':
+        specifier: ^0.72.1
+        version: 0.72.1(ws@8.20.0)(zod@4.4.2)
       '@open-codesign/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime

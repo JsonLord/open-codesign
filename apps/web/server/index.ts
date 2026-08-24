@@ -1,11 +1,13 @@
 import { createReadStream } from 'node:fs';
-import { access, mkdir } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { createDesign, listDesigns, readEntry, writeEntry } from './design-store.js';
 
 const port = Number.parseInt(process.env['PORT'] ?? '7860', 10);
+const host = process.env['HOST'] ?? '127.0.0.1';
 const dataRoot = path.resolve(
   process.env['CODESIGN_PROJECTS_DIR'] ?? process.env['CODESIGN_DATA_DIR'] ?? '/app',
 );
@@ -79,7 +81,8 @@ async function staticFile(response: ServerResponse, pathname: string): Promise<v
   let filePath = path.resolve(webRoot, normalized);
   if (!filePath.startsWith(`${webRoot}${path.sep}`)) throw new Error('Invalid path');
   try {
-    await access(filePath);
+    const entry = await stat(filePath);
+    if (!entry.isFile()) filePath = path.join(webRoot, 'index.html');
   } catch {
     filePath = path.join(webRoot, 'index.html');
   }
@@ -91,7 +94,7 @@ async function staticFile(response: ServerResponse, pathname: string): Promise<v
     'content-security-policy':
       "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; frame-src 'self' blob: data:; connect-src 'self'",
   });
-  createReadStream(filePath).pipe(response);
+  await pipeline(createReadStream(filePath), response);
 }
 
 await mkdir(dataRoot, { recursive: true });
@@ -106,9 +109,13 @@ createServer(async (request, response) => {
     }
     await staticFile(response, url.pathname);
   } catch (error) {
+    if (response.headersSent) {
+      response.destroy(error instanceof Error ? error : undefined);
+      return;
+    }
     const message = error instanceof Error ? error.message : 'Unexpected error';
     json(response, message.includes('ENOENT') ? 404 : 400, { error: message });
   }
-}).listen(port, '0.0.0.0', () => {
-  process.stdout.write(`Open CoDesign Web listening on http://0.0.0.0:${port}\n`);
+}).listen(port, host, () => {
+  process.stdout.write(`Open CoDesign Web listening on http://${host}:${port}\n`);
 });

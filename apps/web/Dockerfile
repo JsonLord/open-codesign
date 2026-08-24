@@ -19,6 +19,7 @@ RUN pnpm --filter @open-codesign/web build
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=7860
+ENV HOST=0.0.0.0
 ENV CODESIGN_PROJECTS_DIR=/app
 WORKDIR /opt/open-codesign/web
 

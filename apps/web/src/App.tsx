@@ -18,6 +18,8 @@ export function App() {
   const [designs, setDesigns] = useState<DesignSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [source, setSource] = useState(EMPTY_SOURCE);
+  const [sourceDesignId, setSourceDesignId] = useState<string | null>(null);
+  const [sourceLoading, setSourceLoading] = useState(false);
   const [status, setStatus] = useState('Loading local workspaces…');
   const [mobilePanel, setMobilePanel] = useState<'source' | 'preview'>('preview');
 
@@ -45,26 +47,46 @@ export function App() {
   useEffect(() => {
     if (!activeId) {
       setSource(EMPTY_SOURCE);
+      setSourceDesignId(null);
+      setSourceLoading(false);
       return;
     }
-    void webApi
-      .readEntry(activeId)
-      .then((entry) => setSource(entry.content))
-      .catch((error: unknown) => setStatus(error instanceof Error ? error.message : String(error)));
+    const requestedId = activeId;
+    let cancelled = false;
+    setSource('');
+    setSourceDesignId(null);
+    setSourceLoading(true);
+    void webApi.readEntry(requestedId).then(
+      (entry) => {
+        if (cancelled) return;
+        setSource(entry.content);
+        setSourceDesignId(requestedId);
+        setSourceLoading(false);
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        setSourceLoading(false);
+        setStatus(error instanceof Error ? error.message : String(error));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [activeId]);
 
   const preview = useMemo(() => buildPreviewDocument(source, { path: 'App.jsx' }), [source]);
 
   async function createDesign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get('name') ?? '').trim();
     if (!name) return;
     try {
       const design = await webApi.createDesign(name);
       setDesigns((current) => [design, ...current]);
       setActiveId(design.id);
-      event.currentTarget.reset();
+      formElement.reset();
       setStatus('Workspace created');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -72,9 +94,9 @@ export function App() {
   }
 
   async function save() {
-    if (!activeId) return;
+    if (!activeId || sourceDesignId !== activeId || sourceLoading) return;
     try {
-      await webApi.writeEntry(activeId, source);
+      await webApi.writeEntry(sourceDesignId, source);
       setStatus('Saved');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -116,8 +138,12 @@ export function App() {
             <p className="eyebrow">APP.JSX</p>
             <h2>{designs.find((design) => design.id === activeId)?.name ?? 'Preview'}</h2>
           </div>
-          <button disabled={!activeId} onClick={() => void save()} type="button">
-            Save source
+          <button
+            disabled={!activeId || sourceDesignId !== activeId || sourceLoading}
+            onClick={() => void save()}
+            type="button"
+          >
+            {sourceLoading ? 'Loading…' : 'Save source'}
           </button>
         </header>
         <div aria-label="Workspace view" className="view-tabs" role="tablist">
@@ -143,6 +169,7 @@ export function App() {
             aria-label="App.jsx source"
             className="panel source-panel"
             data-active={mobilePanel === 'source'}
+            disabled={sourceLoading || sourceDesignId !== activeId}
             onChange={(event) => setSource(event.target.value)}
             spellCheck={false}
             value={source}

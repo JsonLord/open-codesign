@@ -11,6 +11,9 @@ describe('responsive web workspace', () => {
     expect(source).toContain('role="tablist"');
     expect(source).toContain('aria-selected={mobilePanel');
     expect(source).toContain('data-active={mobilePanel');
+    expect(source).toContain('sourceDesignId !== activeId');
+    expect(source).toContain('if (cancelled) return');
+    expect(source).toContain('const formElement = event.currentTarget');
   });
 
   it('covers compact desktop, tablet, and phone layouts', async () => {

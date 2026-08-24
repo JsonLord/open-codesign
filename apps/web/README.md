@@ -42,6 +42,7 @@ Vite runs on port 7860 and proxies API requests to the local Node server on port
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `7860` | HTTP listen port |
+| `HOST` | `127.0.0.1` | Listen host; the Docker image explicitly uses `0.0.0.0` |
 | `CODESIGN_PROJECTS_DIR` | `/app` | Root scanned for managed and existing `App.jsx` projects |
 
 To use an existing host folder instead of the named volume, replace the Compose volume mapping with
@@ -52,9 +53,13 @@ volumes:
   - /absolute/path/to/projects:/app
 ```
 
-Each direct child folder containing `App.jsx` receives local registration metadata at
-`.codesign/web.json`; source files are not moved or renamed. `CODESIGN_DATA_DIR` remains accepted as
-a backward-compatible alias for the project root.
+Each direct child folder containing `App.jsx` is represented by a pi JSONL session under
+`/app/.codesign/sessions`; source files are not moved or renamed, and no parallel design registry is
+created. `CODESIGN_DATA_DIR` remains accepted as a backward-compatible alias for the project root.
+
+The development server binds both the Vite UI and its unauthenticated API to loopback. The Docker
+image explicitly sets `HOST=0.0.0.0` so its published container port remains reachable. Do not set
+an all-interface host for local development on an untrusted network.
 
 The current image is intended for localhost or a trusted private network. Do not expose it directly
 to the public internet: authentication, per-user authorization, isolated agent execution, and

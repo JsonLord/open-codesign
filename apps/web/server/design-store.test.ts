@@ -20,7 +20,7 @@ describe('web design store', () => {
   it('creates a named project folder with an App.jsx entry', async () => {
     const root = await temporaryRoot();
     const design = await createDesign(root, 'Launch Page');
-    const projects = await readdir(root);
+    const projects = (await readdir(root)).filter((entry) => !entry.startsWith('.'));
 
     expect(projects).toHaveLength(1);
     expect(projects[0]).toMatch(/^launch-page-/);
@@ -38,9 +38,15 @@ describe('web design store', () => {
 
     expect(design?.name).toBe('existing-project');
     expect(design?.id).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(await readFile(path.join(project, '.codesign', 'web.json'), 'utf8')).toContain(
-      'existing-project',
+    const sessionFiles = await readdir(path.join(root, '.codesign', 'sessions'));
+    expect(sessionFiles).toHaveLength(1);
+    const session = await readFile(
+      path.join(root, '.codesign', 'sessions', sessionFiles[0] ?? ''),
+      'utf8',
     );
+    expect(session).toContain('"type":"session"');
+    expect(session).toContain('"type":"session_info"');
+    expect(session).toContain('existing-project');
     expect(await listDesigns(root)).toEqual([design]);
   });
 
@@ -59,5 +65,16 @@ describe('web design store', () => {
     await writeEntry(root, design.id, 'export default function App() { return <p>Saved</p>; }');
     expect((await readEntry(root, design.id)).content).toContain('Saved');
     await expect(readEntry(root, '../../etc')).rejects.toThrow('Invalid design id');
+  });
+
+  it('keeps concurrent source writes atomic', async () => {
+    const root = await temporaryRoot();
+    const design = await createDesign(root, 'Concurrent editor');
+    const first = `export default () => <p>${'A'.repeat(20_000)}</p>;`;
+    const second = `export default () => <p>${'B'.repeat(20_000)}</p>;`;
+
+    await Promise.all([writeEntry(root, design.id, first), writeEntry(root, design.id, second)]);
+
+    expect([first, second]).toContain((await readEntry(root, design.id)).content);
   });
 });

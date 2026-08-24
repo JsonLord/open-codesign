@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json"
   },
   "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.72.1",
     "@open-codesign/runtime": "workspace:*",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"

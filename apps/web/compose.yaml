@@ -7,6 +7,7 @@ services:
       - "7860:7860"
     environment:
       CODESIGN_PROJECTS_DIR: /app
+      HOST: 0.0.0.0
       PORT: 7860
     volumes:
       - codesign-web-projects:/app
