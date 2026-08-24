@@ -1,0 +1,8 @@
+.git
+.Codex
+**/node_modules
+**/dist
+**/dist-server
+**/out
+**/.turbo
+docs

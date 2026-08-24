@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["server/**/*"],
+  "compilerOptions": {
+    "outDir": "dist-server",
+    "rootDir": ".",
+    "noEmit": false,
+    "types": ["node"]
+  }
+}

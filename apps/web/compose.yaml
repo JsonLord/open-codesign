@@ -1,0 +1,16 @@
+services:
+  codesign-web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "7860:7860"
+    environment:
+      CODESIGN_PROJECTS_DIR: /app
+      PORT: 7860
+    volumes:
+      - codesign-web-projects:/app
+    restart: unless-stopped
+
+volumes:
+  codesign-web-projects:
