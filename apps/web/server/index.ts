@@ -34,13 +34,80 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
 }
 
+const apiDocsPayload = {
+  title: 'Open CoDesign Web API Documentation',
+  version: '0.1.0',
+  endpoints: [
+    {
+      path: '/health',
+      method: 'GET',
+      purpose: 'Check application readiness and health status',
+      request: null,
+      response: { ok: true, mode: 'local-web', runtime: '...' },
+    },
+    {
+      path: '/api-docs',
+      method: 'GET',
+      purpose: 'API documentation listing all available endpoints',
+      request: null,
+      response: { title: 'Open CoDesign Web API Documentation', version: '0.1.0', endpoints: [] },
+    },
+    {
+      path: '/api/runtime',
+      method: 'GET',
+      purpose: 'Get model runtime status and configuration',
+      request: null,
+      response: { dataRoot: '...', modelConfigured: false },
+    },
+    {
+      path: '/api/designs',
+      method: 'GET',
+      purpose: 'List all designs saved in the workspace',
+      request: null,
+      response: [{ id: '...', name: '...', updatedAt: '...' }],
+    },
+    {
+      path: '/api/designs',
+      method: 'POST',
+      purpose: 'Create a new design in the workspace',
+      request: { name: 'My Design' },
+      response: { id: '...', name: 'My Design', createdAt: '...' },
+    },
+    {
+      path: '/api/designs/:id/entry',
+      method: 'GET',
+      purpose: 'Read source entry code for a specific design',
+      request: null,
+      response: { id: '...', content: '...' },
+    },
+    {
+      path: '/api/designs/:id/entry',
+      method: 'PUT',
+      purpose: 'Update source code entry for a design',
+      request: { content: '...' },
+      response: { id: '...', content: '...' },
+    },
+    {
+      path: '/api/designs/:id/generate',
+      method: 'POST',
+      purpose: 'Generate design code using AI model prompt',
+      request: { prompt: 'Create a landing page...' },
+      response: { id: '...', content: '...' },
+    },
+  ],
+};
+
 async function api(request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> {
-  if (url.pathname === '/api/health' && request.method === 'GET') {
+  if ((url.pathname === '/health' || url.pathname === '/api/health') && request.method === 'GET') {
     json(response, 200, {
       ok: true,
       mode: 'local-web',
       runtime: runtimeStatus(dataRoot, modelConfig),
     });
+    return true;
+  }
+  if ((url.pathname === '/api-docs' || url.pathname === '/api/docs') && request.method === 'GET') {
+    json(response, 200, apiDocsPayload);
     return true;
   }
   if (url.pathname === '/api/runtime' && request.method === 'GET') {
