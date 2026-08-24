@@ -177,9 +177,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@open-codesign/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
       '@open-codesign/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@open-codesign/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       react:
         specifier: ^19.2.6
         version: 19.2.6

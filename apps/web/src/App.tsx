@@ -1,6 +1,6 @@
 import { buildPreviewDocument } from '@open-codesign/runtime';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { type DesignSummary, webApi } from './api';
+import { type DesignSummary, type RuntimeStatus, webApi } from './api';
 
 const EMPTY_SOURCE = `export default function App() {
   return (
@@ -21,8 +21,20 @@ export function App() {
   const [status, setStatus] = useState('Loading local workspaces…');
   const [activeTab, setActiveTab] = useState<'source' | 'preview'>('preview');
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
 
   useEffect(() => {
+    void webApi
+      .runtime()
+      .then(setRuntime)
+      .catch((error: unknown) =>
+        setRuntime({
+          ready: false,
+          storageRoot: '/app',
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
     void webApi
       .listDesigns()
       .then((rows) => {
@@ -75,6 +87,27 @@ export function App() {
     }
   }
 
+  async function generate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeId || !runtime?.ready) return;
+    const form = new FormData(event.currentTarget);
+    const prompt = String(form.get('prompt') ?? '').trim();
+    if (!prompt) return;
+    setIsGenerating(true);
+    setStatus(`Generating with ${runtime.model?.provider ?? 'model'}…`);
+    try {
+      const entry = await webApi.generate(activeId, prompt);
+      setSource(entry.content);
+      setActiveTab('preview');
+      event.currentTarget.reset();
+      setStatus('Generated and saved');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -116,6 +149,24 @@ export function App() {
             {isSaving ? 'Saving…' : 'Save source'}
           </button>
         </header>
+        <form className="prompt-bar" onSubmit={(event) => void generate(event)}>
+          <label className="sr-only" htmlFor="design-prompt">
+            Describe your design
+          </label>
+          <input
+            disabled={!activeId || !runtime?.ready || isGenerating}
+            id="design-prompt"
+            name="prompt"
+            placeholder={
+              runtime?.ready
+                ? 'Describe the design you want…'
+                : (runtime?.message ?? 'Connecting to web runtime…')
+            }
+          />
+          <button disabled={!activeId || !runtime?.ready || isGenerating} type="submit">
+            {isGenerating ? 'Generating…' : 'Generate'}
+          </button>
+        </form>
         <div className="tabs" role="tablist" aria-label="Workspace views">
           <button
             aria-selected={activeTab === 'source'}

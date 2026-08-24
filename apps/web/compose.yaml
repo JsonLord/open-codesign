@@ -8,6 +8,10 @@ services:
     environment:
       CODESIGN_PROJECTS_DIR: /app
       PORT: 7860
+      # Configure these through an env file or deployment secrets to enable generation.
+      CODESIGN_PROVIDER: ${CODESIGN_PROVIDER:-}
+      CODESIGN_MODEL: ${CODESIGN_MODEL:-}
+      CODESIGN_API_KEY: ${CODESIGN_API_KEY:-}
     volumes:
       - codesign-web-data:/app
     restart: unless-stopped
