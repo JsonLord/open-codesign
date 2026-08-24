@@ -40,7 +40,23 @@ Vite runs on port 7860 and proxies API requests to the local Node server on port
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `7860` | HTTP listen port |
-| `CODESIGN_DATA_DIR` | `./data` | Root for managed design workspaces |
+| `CODESIGN_PROJECTS_DIR` | `/app` | Root containing project folders; folders with `App.jsx` are registered automatically |
+| `CODESIGN_DATA_DIR` | — | Backward-compatible alias for `CODESIGN_PROJECTS_DIR` |
+| `CODESIGN_PROVIDER` | — | pi-ai provider ID, such as `anthropic`, `openai`, or `google` |
+| `CODESIGN_MODEL` | — | Model ID exposed by the configured provider |
+| `CODESIGN_API_KEY` | — | Provider key; configure this as a Hugging Face Space secret |
+| `CODESIGN_BASE_URL` | Provider default | Optional compatible API endpoint |
+| `CODESIGN_WIRE` | Provider default | Optional pi-ai wire adapter for compatible endpoints |
+
+The container keeps `/app` exclusively for user projects and runs the server from
+`/opt/open-codesign`. Mount a Hugging Face Space persistent volume at `/app`; existing direct child
+folders containing `App.jsx` appear automatically when the project list is loaded.
+
+The browser does not attempt to call Electron IPC. Its same-origin HTTP adapter exposes runtime
+readiness, workspace storage, and model generation APIs. Until the three required model variables
+are configured, the editor remains usable and the Generate control shows the missing configuration
+instead of leaving the interface in an indefinite loading state. Provider secrets stay on the
+server and are never included in the runtime-status response.
 
 The current image is intended for localhost or a trusted private network. Do not expose it directly
 to the public internet: authentication, per-user authorization, isolated agent execution, and

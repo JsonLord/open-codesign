@@ -4,10 +4,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDesign, listDesigns, readEntry, writeEntry } from './design-store.js';
+import { generateSource, readModelConfig, runtimeStatus } from './model-runtime.js';
 
 const port = Number.parseInt(process.env['PORT'] ?? '7860', 10);
-const dataRoot = path.resolve(process.env['CODESIGN_DATA_DIR'] ?? './data');
+const dataRoot = path.resolve(
+  process.env['CODESIGN_PROJECTS_DIR'] ?? process.env['CODESIGN_DATA_DIR'] ?? '/app',
+);
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
+const modelConfig = readModelConfig();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, {
@@ -32,7 +36,15 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
 
 async function api(request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === '/api/health' && request.method === 'GET') {
-    json(response, 200, { ok: true, mode: 'local-web' });
+    json(response, 200, {
+      ok: true,
+      mode: 'local-web',
+      runtime: runtimeStatus(dataRoot, modelConfig),
+    });
+    return true;
+  }
+  if (url.pathname === '/api/runtime' && request.method === 'GET') {
+    json(response, 200, runtimeStatus(dataRoot, modelConfig));
     return true;
   }
   if (url.pathname === '/api/designs' && request.method === 'GET') {
@@ -57,6 +69,21 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL)
     const body = await readJson(request);
     if (typeof body['content'] !== 'string') throw new Error('Source content is required');
     json(response, 200, await writeEntry(dataRoot, entryMatch[1], body['content']));
+    return true;
+  }
+  const generateMatch = url.pathname.match(/^\/api\/designs\/([^/]+)\/generate$/);
+  if (generateMatch?.[1] && request.method === 'POST') {
+    if (!modelConfig) {
+      json(response, 503, runtimeStatus(dataRoot, null));
+      return true;
+    }
+    const body = await readJson(request);
+    const prompt = typeof body['prompt'] === 'string' ? body['prompt'].trim() : '';
+    if (!prompt || prompt.length > 20_000)
+      throw new Error('Prompt must contain between 1 and 20000 characters');
+    const current = await readEntry(dataRoot, generateMatch[1]);
+    const content = await generateSource(modelConfig, prompt, current.content);
+    json(response, 200, await writeEntry(dataRoot, generateMatch[1], content));
     return true;
   }
   return false;
