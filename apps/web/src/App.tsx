@@ -19,6 +19,8 @@ export function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [source, setSource] = useState(EMPTY_SOURCE);
   const [status, setStatus] = useState('Loading local workspaces…');
+  const [activeTab, setActiveTab] = useState<'source' | 'preview'>('preview');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     void webApi
@@ -49,17 +51,28 @@ export function App() {
     const form = new FormData(event.currentTarget);
     const name = String(form.get('name') ?? '').trim();
     if (!name) return;
-    const design = await webApi.createDesign(name);
-    setDesigns((current) => [design, ...current]);
-    setActiveId(design.id);
-    event.currentTarget.reset();
-    setStatus('Workspace created');
+    try {
+      const design = await webApi.createDesign(name);
+      setDesigns((current) => [design, ...current]);
+      setActiveId(design.id);
+      event.currentTarget.reset();
+      setStatus('Workspace created in /app');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
   }
 
   async function save() {
     if (!activeId) return;
-    await webApi.writeEntry(activeId, source);
-    setStatus('Saved');
+    setIsSaving(true);
+    try {
+      await webApi.writeEntry(activeId, source);
+      setStatus('Saved');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -68,7 +81,7 @@ export function App() {
         <div>
           <p className="eyebrow">LOCAL-FIRST</p>
           <h1>Open CoDesign</h1>
-          <p className="muted">Web workspace preview</p>
+          <p className="muted">Projects in /app are discovered automatically</p>
         </div>
         <form onSubmit={(event) => void createDesign(event)}>
           <label htmlFor="design-name">New design</label>
@@ -89,7 +102,9 @@ export function App() {
             </button>
           ))}
         </nav>
-        <p className="status">{status}</p>
+        <p className="status" aria-live="polite">
+          {status}
+        </p>
       </aside>
       <section className="workspace">
         <header>
@@ -97,18 +112,42 @@ export function App() {
             <p className="eyebrow">APP.JSX</p>
             <h2>{designs.find((design) => design.id === activeId)?.name ?? 'Preview'}</h2>
           </div>
-          <button disabled={!activeId} onClick={() => void save()} type="button">
-            Save source
+          <button disabled={!activeId || isSaving} onClick={() => void save()} type="button">
+            {isSaving ? 'Saving…' : 'Save source'}
           </button>
         </header>
+        <div className="tabs" role="tablist" aria-label="Workspace views">
+          <button
+            aria-selected={activeTab === 'source'}
+            onClick={() => setActiveTab('source')}
+            role="tab"
+            type="button"
+          >
+            Source
+          </button>
+          <button
+            aria-selected={activeTab === 'preview'}
+            onClick={() => setActiveTab('preview')}
+            role="tab"
+            type="button"
+          >
+            Preview
+          </button>
+        </div>
         <div className="panes">
           <textarea
             aria-label="App.jsx source"
+            className={activeTab === 'source' ? 'pane active-pane' : 'pane source-pane'}
             onChange={(event) => setSource(event.target.value)}
             spellCheck={false}
             value={source}
           />
-          <iframe sandbox="allow-scripts" srcDoc={preview} title="Design preview" />
+          <iframe
+            className={activeTab === 'preview' ? 'pane active-pane' : 'pane preview-pane'}
+            sandbox="allow-scripts"
+            srcDoc={preview}
+            title="Design preview"
+          />
         </div>
       </section>
     </main>

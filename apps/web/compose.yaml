@@ -6,10 +6,10 @@ services:
     ports:
       - "7860:7860"
     environment:
-      CODESIGN_DATA_DIR: /data
+      CODESIGN_PROJECTS_DIR: /app
       PORT: 7860
     volumes:
-      - codesign-web-data:/data
+      - codesign-web-data:/app
     restart: unless-stopped
 
 volumes:

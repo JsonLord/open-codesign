@@ -19,15 +19,15 @@ RUN pnpm --filter @open-codesign/web build
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=7860
-ENV CODESIGN_DATA_DIR=/data
-WORKDIR /app/apps/web
+ENV CODESIGN_PROJECTS_DIR=/app
+WORKDIR /opt/open-codesign
 
 COPY --from=build /app/apps/web/dist ./dist
 COPY --from=build /app/apps/web/dist-server ./dist-server
 
-RUN mkdir -p /data && chown -R node:node /app /data
+RUN mkdir -p /app && chown -R node:node /app /opt/open-codesign
 USER node
 EXPOSE 7860
-VOLUME ["/data"]
+VOLUME ["/app"]
 
 CMD ["node", "dist-server/server/index.js"]

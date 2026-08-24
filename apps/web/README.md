@@ -40,7 +40,12 @@ Vite runs on port 7860 and proxies API requests to the local Node server on port
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `7860` | HTTP listen port |
-| `CODESIGN_DATA_DIR` | `./data` | Root for managed design workspaces |
+| `CODESIGN_PROJECTS_DIR` | `/app` | Root containing project folders; folders with `App.jsx` are registered automatically |
+| `CODESIGN_DATA_DIR` | — | Backward-compatible alias for `CODESIGN_PROJECTS_DIR` |
+
+The container keeps `/app` exclusively for user projects and runs the server from
+`/opt/open-codesign`. Mount a Hugging Face Space persistent volume at `/app`; existing direct child
+folders containing `App.jsx` appear automatically when the project list is loaded.
 
 The current image is intended for localhost or a trusted private network. Do not expose it directly
 to the public internet: authentication, per-user authorization, isolated agent execution, and
