@@ -4,9 +4,9 @@
 .vscode
 .Codex
 .claude
-node_modules
-dist
-dist-server
-build
+**/node_modules
+**/dist
+**/dist-server
+**/build
 .turbo
 *.log

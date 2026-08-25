@@ -10,7 +10,9 @@ const port = Number.parseInt(process.env['PORT'] ?? '7860', 10);
 const dataRoot = path.resolve(
   process.env['CODESIGN_PROJECTS_DIR'] ?? process.env['CODESIGN_DATA_DIR'] ?? '/app',
 );
-const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist');
+const webRoot = path.resolve(
+  process.env['CODESIGN_WEB_ROOT'] ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '../dist'),
+);
 const modelConfig = readModelConfig();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
