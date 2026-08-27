@@ -1,0 +1,12 @@
+.git
+.github
+.husky
+.vscode
+.Codex
+.claude
+**/node_modules
+**/dist
+**/dist-server
+**/build
+.turbo
+*.log

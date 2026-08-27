@@ -1,3 +1,9 @@
+---
+title: openui-cowork
+sdk: docker
+app_port: 7860
+---
+
 # Open CoDesign
 
 **简体中文**: [README.zh-CN.md](./README.zh-CN.md)

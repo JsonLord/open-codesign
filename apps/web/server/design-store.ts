@@ -22,7 +22,7 @@ const DEFAULT_SOURCE = `export default function App() {
       <section style={{ maxWidth: 620, padding: 48, textAlign: 'center' }}>
         <p style={{ color: '#6d28d9', fontWeight: 700 }}>OPEN CODESIGN WEB</p>
         <h1 style={{ fontSize: 52, lineHeight: 1.05, margin: '16px 0' }}>Design in your browser.</h1>
-        <p style={{ color: '#57534e', fontSize: 20 }}>Your source stays in the /app workspace.</p>
+        <p style={{ color: '#57534e', fontSize: 20 }}>Your source stays in a Docker-backed local workspace.</p>
       </section>
     </main>
   );
